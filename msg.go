@@ -16,7 +16,7 @@ var IsTerm bool = true
 
 // Spliter is a helpful struct for saving output to a file or secondary Writer
 type Spliter struct {
-	Err   string
+	Value   string
 	Wr    io.Writer
 	Extra io.Writer
 }
@@ -41,7 +41,7 @@ var (
 
 // Write makes the Splitter write into its main output and secondary output
 func (e *Spliter) Write(p []byte) (n int, err error) {
-	e.Err = string(p)
+	e.Value = string(p)
 	e.Wr.Write(p)
 	if e.Extra != nil {
 		e.Extra.Write(p)
@@ -50,7 +50,14 @@ func (e *Spliter) Write(p []byte) (n int, err error) {
 }
 
 // ErrorSplitter provides a tool to split the stream to a file and stderr
-func ErrorSplitter() *Spliter {
+func ErrorSplitter(filename string) *Spliter {
+	if filename != "" {
+		f, _ := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
+		return &Spliter{
+			Wr:    os.Stderr,
+			Extra: f,
+		}
+	}
 	return &Spliter{
 		Wr: os.Stderr,
 	}
