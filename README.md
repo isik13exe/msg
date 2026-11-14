@@ -4,12 +4,12 @@ A lightweight Go library for colorful, terminal-aware message output with a cust
 
 ## Features
 
-- 🎨 **ANSI color support** — RGB colors with automatic terminal detection
-- 📝 **Custom formatting** — simple `%`-based interpolation for any Go type inspired from [Jai](https://inductive.no/jai/)
-- 🏷️ **Pre-styled log helpers** — `ERROR`, `SUCCESS`, `INFO` with `Print`/`Printf`/`Println` variants
-- 🔀 **Output splitting** — tee output to files or secondary writers
-- 🖥️ **Terminal detection** — automatically strips ANSI codes when piping to files
-- 🔧 **Reflection-based serialization** — works with structs, maps, slices, pointers, interfaces, and more
+- **ANSI color support** — RGB colors with automatic terminal detection
+- **Custom formatting** — simple `%`-based interpolation for any Go type inspired from [Jai](https://inductive.no/jai/)
+- **Pre-styled log helpers** — `ERROR`, `SUCCESS`, `INFO` with `Print`/`Printf`/`Println` variants
+- **Output splitting** — tee output to files or secondary writers
+- **Terminal detection** — automatically strips ANSI codes when piping to files
+- **Reflection-based serialization** — works with structs, maps, slices, pointers, interfaces, and more
 
 ## Installation
 
