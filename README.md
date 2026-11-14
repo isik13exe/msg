@@ -1,6 +1,6 @@
 # msg
 
-A lightweight Go library for colorful, terminal-aware message output with a custom format system.
+A lightweight Go library for colorful, terminal-aware message output with a custom Jai-inspired format system.
 
 ## Features
 
