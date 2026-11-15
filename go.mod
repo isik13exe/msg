@@ -1,4 +1,4 @@
-module msg
+module github.com/isik13exe/msg-go
 
 go 1.27.4
 
