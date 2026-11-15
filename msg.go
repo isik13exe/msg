@@ -227,6 +227,14 @@ func Colorln(c Color, data ...any) error {
 	return nil
 }
 
+type Pc int
+
+const (
+	NONE Pc = iota
+	DEREF
+	PTR
+)
+
 // Prints the data into the writer out
 func Fprint(out io.Writer, a ...any) error {
 	return Fprintf(out, gen_format(a...), a...)
@@ -310,7 +318,11 @@ func Println(a ...any) error {
 
 // Printf prints the data into the standered output in a formatted way
 func Printf(format string, a ...any) error {
-	return Fprintf(os.Stdout, format, a...)
+	err := Fprintf(os.Stdout, format, a...)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
 
 // Print prints the data into the standered output in a formatted way
@@ -319,10 +331,10 @@ func Print(a ...any) error {
 }
 
 // countf counts the number of % in a string, it returns the number of % relevent to formatting and an array of indices of %% which are not relevent to formatting but should be proccessed into one %
-func countf(f []rune) (int, []int) {
+func countf(f []rune) (int, []int, error) {
 	l := len(f)
 	if l == 0 {
-		return 0, []int{}
+		return 0, []int{}, nil
 	}
 	count := 0
 	ind := []int{}
@@ -332,11 +344,15 @@ func countf(f []rune) (int, []int) {
 				ind = append(ind, i)
 				i++
 				continue
+			} else {
+				count++
 			}
-			count++
+		}
+		if f[i] == '{' && i > 0 && f[i-1] != '_' {
+			return 0, nil, Errorf("found relevent '{' in '%' processing.")
 		}
 	}
-	return count, ind
+	return count, ind, nil
 }
 
 // reduce process the %% in string f according to the indeces ind that should be provided by countf to reduce then into one %
@@ -351,10 +367,76 @@ func reduce(f []rune, ind []int) string {
 	return string(holder)
 }
 
-// interpol iterates the string f to proccess the data array a and bake it all into one string
+// raw_reduce assumes that there is no operative % and { in the string, just escaped ones with %%
+func raw_reduce(f string) string {
+	h := []rune(f)
+	res := []rune{}
+	l := len(h)
+	for i := 0; i < l; i++ {
+		if h[i] == '%' {
+			res = append(res, '%')
+			i++
+			continue
+		}
+		if h[i] == '_' && i < l-1 && h[i+1] == '{' {
+			res = append(res, '{')
+			i++
+			continue
+		}
+		res = append(res, h[i])
+	}
+	return string(res)
+}
+
+const (
+	SIMPLE = iota
+	POS
+	PER
+)
+
 func interpol(f string, a ...any) (string, error) {
+	mode := SIMPLE
+	b := []byte(f)
+	l := len(b)
+	for i := 0; i < l; i++ {
+		if b[i] == '%' {
+			if i < l-1 && b[i+1] != '%' {
+				mode = PER
+				break
+			} else {
+				i++
+				continue
+			}
+		}
+		if b[i] == '{' && i > 0 && b[i-1] != '_' {
+			mode = POS
+			break
+		}
+	}
+
+	switch mode {
+	case SIMPLE:
+		if len(a) > 0 {
+			return f, Errorf("No formating but % data provided", len(a))
+		}
+		return raw_reduce(f), nil
+	case PER:
+		return per_print(f, a...)
+	case POS:
+		return pos_print(f, a...)
+	default:
+		panic("unreachable")
+	}
+}
+
+// per_print iterates the string f to proccess the data array a and bake it all into one string for the case of using %
+func per_print(f string, a ...any) (string, error) {
 	holder := []rune(f)
-	if c, ind := countf(holder); c == 0 {
+	c, ind, err := countf(holder)
+	if err != nil {
+		return f, err
+	}
+	if c == 0 && len(a) == 0 {
 		return reduce(holder, ind), nil
 	}
 	if len(f) == 0 {
@@ -365,7 +447,7 @@ func interpol(f string, a ...any) (string, error) {
 	n := 0
 	i := 0
 	l := len(holder)
-	ptr := false
+	deref := false
 	for ; i < l; i++ {
 		if holder[i] == '%' {
 			if i < l-1 {
@@ -389,7 +471,7 @@ func interpol(f string, a ...any) (string, error) {
 			}
 			data += string(msg)
 			msg = []rune{}
-			hold, err := format(a[n], ptr)
+			hold, err := format(a[n], deref)
 			if err != nil {
 				data += string(msg)
 				data += string(f[i])
@@ -398,19 +480,15 @@ func interpol(f string, a ...any) (string, error) {
 				return data, err
 			}
 			data += hold
-			if ptr {
-				ptr = false
+			if deref {
+				deref = false
 			}
 			n++
 			continue
 		}
-		if holder[i] == '*' {
-			if i < l-1 {
-				if holder[i+1] == '%' {
-					ptr = true
-					continue
-				}
-			}
+		if holder[i] == '*' && i < l-1 && holder[i+1] == '%' {
+			deref = true
+			continue
 		}
 		msg = append(msg, holder[i])
 	}
@@ -426,20 +504,20 @@ func interpol(f string, a ...any) (string, error) {
 }
 
 // format is a layer between having a data interface a and a reflect.Value v for format_v
-func format(a any, ptr bool) (string, error) {
-	return format_v(reflect.ValueOf(a), ptr)
+func format(a any, deref bool) (string, error) {
+	return format_v(reflect.ValueOf(a), deref)
 }
 
 // format_v stringefies the data stored in reflec.Value v to be baked into the resulted string of interpol
-func format_v(v reflect.Value, ptr bool) (string, error) {
+func format_v(v reflect.Value, deref bool) (string, error) {
+	//println(v.Kind().String())
 	var perr error = nil
 	switch v.Kind() {
 	case reflect.Pointer:
-		if !ptr {
+		if !deref {
 			vptr := v.Pointer()
 			if vptr != 0 {
 				return "0x" + strconv.FormatUint(uint64(vptr), 16), nil
-
 			} else {
 				return "<nil>", nil
 			}
@@ -467,48 +545,48 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 					}
 					return verr[0].String(), nil
 				}
-				sh, ferr := format_v(v.Elem(), !ptr)
-				return "&" + sh, ferr
+				sh, ferr := format_v(v.Elem(), false)
+				return "&(" + sh + ")", ferr
 			} else {
-				sh, ferr := format_v(v.Elem(), !ptr)
-				return "&" + sh, ferr
+				sh, ferr := format_v(v.Elem(), false)
+				return sh, ferr
 			}
 		}
 	case reflect.Interface:
-		return format_v(v.Elem(), ptr)
+		return format_v(v.Elem(), deref)
 	case reflect.String:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a string")
 		}
 		return v.String(), perr
 	case reflect.Float32:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a Float32")
 		}
 		return strconv.FormatFloat(v.Float(), 'g', -1, 32), perr
 	case reflect.Float64:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a Float64")
 		}
 		return strconv.FormatFloat(v.Float(), 'g', -1, 64), perr
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref an Int")
 		}
 		return strconv.FormatInt(v.Int(), 10), perr
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref an Uint")
 		}
 		return strconv.FormatUint(v.Uint(), 10), perr
 	case reflect.Func:
-		if ptr {
+		if deref {
 			return strip_name(runtime.FuncForPC(v.Pointer()).Name()), perr
 		}
 
 		return "0x" + strconv.FormatUint(uint64(v.Pointer()), 16), perr
 	case reflect.Struct:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a Struct")
 		}
 		str := v.MethodByName("String")
@@ -538,14 +616,14 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 		n := tv.NumField()
 		for i := 0; i < n; i++ {
 			if i == 0 {
-				sh, ferr := format_v(v.Field(i), ptr)
+				sh, ferr := format_v(v.Field(i), false)
 				if ferr != nil {
 					return s + sh, ferr
 				}
 				s += sh
 				continue
 			}
-			sh, ferr := format_v(v.Field(i), ptr)
+			sh, ferr := format_v(v.Field(i), false)
 			if ferr != nil {
 				return s + sh, ferr
 			}
@@ -553,20 +631,20 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 		}
 		return s + "}", perr
 	case reflect.Array, reflect.Slice:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref an Array")
 		}
 		s := "["
 		for i := 0; i < v.Len(); i++ {
 			if i == 0 {
-				sh, ferr := format_v(v.Index(i), ptr)
+				sh, ferr := format_v(v.Index(i), false)
 				if ferr != nil {
 					return s + sh, ferr
 				}
 				s += sh
 				continue
 			}
-			sh, ferr := format_v(v.Index(i), ptr)
+			sh, ferr := format_v(v.Index(i), deref)
 			if ferr != nil {
 				return s + sh, ferr
 			}
@@ -575,7 +653,7 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 		s += "]"
 		return s, perr
 	case reflect.Map:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a Map")
 		}
 		s := "map["
@@ -584,22 +662,22 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 		}
 		for i, kv := range v.MapKeys() {
 			if i == 0 {
-				sh, serr := format_v(kv, ptr)
+				sh, serr := format_v(kv, false)
 				if serr != nil {
 					return s, serr
 				}
-				vsh, vserr := format_v(v.MapIndex(kv), ptr)
+				vsh, vserr := format_v(v.MapIndex(kv), false)
 				if vserr != nil {
 					return s, vserr
 				}
 				s += sh + ":" + vsh
 				continue
 			}
-			sh, serr := format_v(kv, ptr)
+			sh, serr := format_v(kv, false)
 			if serr != nil {
 				return s, serr
 			}
-			vsh, vserr := format_v(v.MapIndex(kv), ptr)
+			vsh, vserr := format_v(v.MapIndex(kv), false)
 			if vserr != nil {
 				return s, vserr
 			}
@@ -607,7 +685,7 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 		}
 		return s + "]", perr
 	case reflect.Bool:
-		if ptr {
+		if deref {
 			perr = errors.New("Deref tried to deref a Map")
 		}
 		if v.Bool() {
@@ -655,7 +733,7 @@ func Errorf(format string, a ...any) error {
 // strip_name is used to get the name of functions/methods/structs without the parant module
 func strip_name(s string) string {
 	l := len(s)
-	i := l-1
+	i := l - 1
 	for ; i >= 0; i-- {
 		if s[i] == '.' {
 			break
@@ -665,4 +743,126 @@ func strip_name(s string) string {
 		return s[i+1:]
 	}
 	return s
+}
+
+type Brace struct {
+	Pos   int
+	Size  int
+	Count int
+	Deref bool
+}
+
+type Braces struct {
+	Ins       []Brace
+	Max       int
+	Not_empty bool
+}
+
+// braces gets all teh instances of used {n}
+func braces(f string) (Braces, error) {
+	it := Braces{}
+	r := []rune(f)
+	l := len(r)
+	i := 0
+	deref := false
+	for ; i < l; i++ {
+		if r[i] == '%' {
+			if i == l-1 || r[i+1] != '%' {
+				return Braces{}, Errorf("found %% mixed in at: %", i)
+			}
+			i++
+			continue
+		}
+		if r[i] == '*' && i < l-1 && r[i+1] == '{' {
+			deref = true
+			continue
+		}
+		if r[i] == '{' && i > 0 && r[i-1] != '_' {
+			hold := Brace{Pos: i, Deref: deref, Size: 1}
+			if deref {
+				deref = false
+				hold.Pos--
+				hold.Size++
+			}
+			if i == l-1 {
+				return Braces{}, Errorf("didn't close brace at: %", i)
+			}
+			i++
+			nhold := []rune{}
+			for ; i < l && r[i] == ' '; i++ {
+				hold.Size++
+			}
+			for ; i < l; i++ {
+				if r[i] == ' ' || r[i] == '}' {
+					break
+				}
+				hold.Size++
+				nhold = append(nhold, r[i])
+			}
+			for ; i < l && r[i] == ' '; i++ {
+				hold.Size++
+			}
+			if i == l || r[i] != '}' {
+				return Braces{}, Errorf("didn't close brace at: %", i)
+			}
+			hold.Size++
+			i++
+			n, err := strconv.Atoi(string(nhold))
+			if err != nil {
+				return Braces{}, Errorf("found weird stuff in braces at: % , found \"%\"", i-2, string(nhold))
+			}
+			hold.Count = n
+			if it.Max < n {
+				it.Max = n
+			}
+			it.Ins = append(it.Ins, hold)
+			it.Not_empty = true
+		}
+	}
+	return it, nil
+}
+
+// pos_print formats the data into the string using the {n} fromat to use fewer data instances
+func pos_print(f string, a ...any) (string, error) {
+	if f == "" {
+		return "", nil
+	}
+	in, err := braces(f)
+	if err != nil {
+		return f, err
+	}
+	if !in.Not_empty {
+		return f, nil
+	}
+	if in.Max != len(a)-1 {
+		return f, Errorf("Mismatch between formatting and values: %(values needed) != %(values provided)", in.Max+1, len(a))
+	}
+	sa := map[int]string{}
+	for i, av := range a {
+		str, err := format(av, false)
+		if err != nil {
+			return f, err
+		}
+		sa[i] = str
+	}
+	res := ""
+	from := 0
+	for i := 0; i < len(in.Ins); i++ {
+		str := ""
+		if in.Ins[i].Deref {
+			str, err = format(a[in.Ins[i].Count], true)
+			if err != nil {
+				return f, err
+			}
+		} else {
+			str = sa[in.Ins[i].Count]
+		}
+		res += f[from:in.Ins[i].Pos]
+		res += str
+		from = in.Ins[i].Pos + in.Ins[i].Size
+	}
+	if from <= len(f)-1 {
+		res += f[from:]
+	}
+	return res, nil
 }

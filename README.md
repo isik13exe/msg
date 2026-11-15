@@ -6,6 +6,7 @@ A lightweight Go library for colorful, terminal-aware message output with a cust
 
 - **ANSI color support** — RGB colors with automatic terminal detection
 - **Custom formatting** — simple `%`-based interpolation for any Go type inspired from [Jai](https://inductive.no/jai/)
+- **Positional formatting** — `{n}` placeholders to reuse or reorder values
 - **Pre-styled log helpers** — `ERROR`, `SUCCESS`, `INFO` with `Print`/`Printf`/`Println` variants
 - **Output splitting** — tee output to files or secondary writers
 - **Terminal detection** — automatically strips ANSI codes when piping to files
@@ -29,7 +30,6 @@ go get golang.org/x/term
 package main
 
 import (
-    "os"
     msg "github.com/isik13exe/msg"
 )
 
@@ -85,6 +85,26 @@ msg.Printf("%", []int{1, 2, 3})           // [1, 2, 3]
 - Interfaces
 - `nil` renders as `<nil>` to be consistent with Go's `fmt` package
 - Arrays, Slices, Maps, Structs use a comma-separated list for better readability
+
+### Positional Formatting
+
+Use `{n}` to refer to a value by its index (starting at `0`), so a value can be reused or placed out of order. Spaces inside the braces are ignored (`{ 0 }` equals `{0}`).
+
+```go
+msg.Print("x = {0}, x + x = {1}", 2, 4)   // x = 2, x + x = 4
+msg.Print("Say {1}, {0}!", "world", "Hello")  // Say Hello, world!
+```
+
+Rules:
+
+- `%` and `{n}` can't be mixed in the same format string.
+- The highest index used must be the last value provided, so every value has to be accounted for (`{0}` with two values is an error).
+- Prefix with `*` to dereference a pointer, same as `*%`:
+
+```go
+name := "Go"
+msg.Print("Deref: *{0}, ptr: {0}", &name)    // Deref: Go, ptr: 0xc000...
+```
 
 ### Literal Percent
 
