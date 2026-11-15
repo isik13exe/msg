@@ -14,7 +14,7 @@ A lightweight Go library for colorful, terminal-aware message output with a cust
 ## Installation
 
 ```bash
-go get github.com/isik13exe/msg-go
+go get github.com/isik13exe/msg
 ```
 
 Requires `golang.org/x/term`:
@@ -30,7 +30,7 @@ package main
 
 import (
     "os"
-    msg "github.com/isik13exe/msg-go"
+    msg "github.com/isik13exe/msg"
 )
 
 func main() {
