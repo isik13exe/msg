@@ -16,7 +16,7 @@ var IsTerm bool = true
 
 // Spliter is a helpful struct for saving output to a file or secondary Writer
 type Spliter struct {
-	Value   string
+	Value string
 	Wr    io.Writer
 	Extra io.Writer
 }
