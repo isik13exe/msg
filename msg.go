@@ -319,7 +319,7 @@ func Print(a ...any) error {
 }
 
 // countf counts the number of % in a string, it returns the number of % relevent to formatting and an array of indices of %% which are not relevent to formatting but should be proccessed into one %
-func countf(f string) (int, []int) {
+func countf(f []rune) (int, []int) {
 	l := len(f)
 	if l == 0 {
 		return 0, []int{}
@@ -340,37 +340,37 @@ func countf(f string) (int, []int) {
 }
 
 // reduce process the %% in string f according to the indeces ind that should be provided by countf to reduce then into one %
-func reduce(f string, ind []int) string {
-	holder := []byte{}
-	fb := []byte(f)
+func reduce(f []rune, ind []int) string {
+	holder := []rune{}
 	old := 0
 	for _, here := range ind {
-		holder = append(holder, fb[old:here]...)
+		holder = append(holder, f[old:here]...)
 		old = here + 1
 	}
-	holder = append(holder, fb[old:]...)
+	holder = append(holder, f[old:]...)
 	return string(holder)
 }
 
 // interpol iterates the string f to proccess the data array a and bake it all into one string
 func interpol(f string, a ...any) (string, error) {
-	if c, ind := countf(f); c == 0 {
-		return reduce(f, ind), nil
+	holder := []rune(f)
+	if c, ind := countf(holder); c == 0 {
+		return reduce(holder, ind), nil
 	}
 	if len(f) == 0 {
 		return "", errors.New("empty format string")
 	}
 	data := ""
-	msg := []byte{}
+	msg := []rune{}
 	n := 0
 	i := 0
-	l := len(f)
+	l := len(holder)
 	ptr := false
 	for ; i < l; i++ {
-		if f[i] == '%' {
+		if holder[i] == '%' {
 			if i < l-1 {
-				if f[i+1] == '%' {
-					msg = append(msg, f[i])
+				if holder[i+1] == '%' {
+					msg = append(msg, holder[i])
 					i++
 					continue
 				}
@@ -379,7 +379,7 @@ func interpol(f string, a ...any) (string, error) {
 				data += string(msg)
 				data += string(f[i])
 				hold, _ := Sprint("(<=ex-error %(%%)>%(args))", n+1, len(a))
-				data += hold + f[i+1:]
+				data += hold + string(holder[i+1:])
 				err := "Unmatched number of %% and data: %%=% data=% too few data"
 				sh, ferr := Sprint(err, n+1, len(a))
 				if ferr != nil {
@@ -388,7 +388,7 @@ func interpol(f string, a ...any) (string, error) {
 				return data, errors.New(sh)
 			}
 			data += string(msg)
-			msg = []byte{}
+			msg = []rune{}
 			hold, err := format(a[n], ptr)
 			if err != nil {
 				data += string(msg)
@@ -404,15 +404,15 @@ func interpol(f string, a ...any) (string, error) {
 			n++
 			continue
 		}
-		if f[i] == '*' {
+		if holder[i] == '*' {
 			if i < l-1 {
-				if f[i+1] == '%' {
+				if holder[i+1] == '%' {
 					ptr = true
 					continue
 				}
 			}
 		}
-		msg = append(msg, f[i])
+		msg = append(msg, holder[i])
 	}
 	if len(msg) > 0 {
 		data += string(msg)
@@ -655,7 +655,7 @@ func Errorf(format string, a ...any) error {
 // strip_name is used to get the name of functions/methods/structs without the parant module
 func strip_name(s string) string {
 	l := len(s)
-	i := l
+	i := l-1
 	for ; i >= 0; i-- {
 		if s[i] == '.' {
 			break
