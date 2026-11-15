@@ -1,4 +1,4 @@
-module github.com/isik13exe/msg-go
+module github.com/isik13exe/msg
 
 retract v0.1.0
 
