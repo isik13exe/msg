@@ -1,7 +1,7 @@
 module github.com/isik13exe/msg
 
 retract v0.1.0
-
+retract v0.3.1
 go 1.27.4
 
 require (
