@@ -671,7 +671,7 @@ func ToLower(s string) string {
 	diff := 'a' - 'A'
 	for _, v := range []rune(s) {
 		if v <= 'Z' && v >= 'A' {
-			res = append(res, v-diff)
+			res = append(res, v+diff)
 		} else {
 			res = append(res, v)
 		}
@@ -688,7 +688,7 @@ func ToUpper(s string) string {
 	diff := 'a' - 'A'
 	for _, v := range []rune(s) {
 		if v <= 'z' && v >= 'a' {
-			res = append(res, v+diff)
+			res = append(res, v-diff)
 		} else {
 			res = append(res, v)
 		}
