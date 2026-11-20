@@ -463,10 +463,10 @@ func format_v(v reflect.Value, ptr bool) (string, error) {
 					return verr[0].String(), nil
 				}
 				sh, ferr := format_v(v.Elem(), !ptr)
-				return "&" + sh, ferr
+				return sh, ferr
 			} else {
 				sh, ferr := format_v(v.Elem(), !ptr)
-				return "&" + sh, ferr
+				return sh, ferr
 			}
 		}
 	case reflect.Interface:
@@ -694,4 +694,97 @@ func ToUpper(s string) string {
 		}
 	}
 	return string(res)
+}
+
+/*
+Srune splits the string s according to the rune r provided.
+the keep parameter is for keeping empty strings between instances of r.
+example:
+	Srune("abcbbcdc",b,true) => ["a","c","","c","d","c"]
+	Srune("abcbbcdc",b,false) => ["a","c","c","d","c"]
+*/
+func Srune(s string, r rune, keep bool) []string {
+	if s == "" {
+		return []string{""}
+	}
+	res := []string{}
+	holder := []rune{}
+	for _, v := range []rune(s) {
+		if v == r {
+			if len(holder) > 0 || keep {
+				res = append(res, string(holder))
+				holder = []rune{}
+			}
+			continue
+		}
+		holder = append(holder, v)
+	}
+	if len(holder) > 0 {
+		res = append(res, string(holder))
+	}
+	return res
+}
+
+/*
+Srune_f splits the string s on the runes that satisies f.
+example:
+	Srune_f("abcbbcdc",func(r rune)bool{return r == 'b' || r=='d'}) => ["a","c","c"]
+*/
+func Srune_f(s string, f func(rune) bool) []string {
+	if s == "" {
+		return []string{""}
+	}
+	res := []string{}
+	holder := []rune{}
+	for _, v := range []rune(s) {
+		if f(v) {
+			if len(holder) > 0 {
+				res = append(res, string(holder))
+				holder = []rune{}
+			}
+			continue
+		}
+		holder = append(holder, v)
+	}
+	if len(holder) > 0 {
+		res = append(res, string(holder))
+	}
+	return res
+}
+
+// Sspace is a wraper of Srune for splitting by spaces
+func Sspace(s string, keep bool) []string {
+	return Srune(s, ' ', keep)
+}
+
+// SspaceN is similair to Sspace with the keep set to false
+func SspaceN(s string) []string {
+	return Srune(s, ' ', false)
+}
+
+// Snline is a wraper of Srune for splitting by newlines
+func Snline(s string, keep bool) []string {
+	return Srune(s, '\n', keep)
+}
+
+// SlineN is similair to Snline with the keep set to false
+func SnlineN(s string) []string {
+	return Srune(s, '\n', false)
+}
+
+// Stab is a wraper of Srune for splitting by tabs
+func Stab(s string, keep bool) []string {
+	return Srune(s, '\t', keep)
+}
+
+// StabN is similair to Stab with the keep set to false
+func StabN(s string) []string {
+	return Srune(s, '\t', false)
+}
+
+// Swhites splits by all white separators (sapces, new lines, tabs)
+func Swhites(s string) []string {
+	return Srune_f(s, func(r rune) bool {
+		return r == ' ' || r == '\n' || r == '\t'
+	})
 }
