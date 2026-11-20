@@ -661,3 +661,37 @@ func strip_name(s string) string {
 	}
 	return s
 }
+
+// ToLower is just a simpler version of strings.ToLower
+func ToLower(s string) string {
+	if s == "" {
+		return ""
+	}
+	res := []rune{}
+	diff := 'a' - 'A'
+	for _, v := range []rune(s) {
+		if v <= 'Z' && v >= 'A' {
+			res = append(res, v-diff)
+		} else {
+			res = append(res, v)
+		}
+	}
+	return string(res)
+}
+
+// ToUpper is just a simpler version of strings.ToUpper
+func ToUpper(s string) string {
+	if s == "" {
+		return ""
+	}
+	res := []rune{}
+	diff := 'a' - 'A'
+	for _, v := range []rune(s) {
+		if v <= 'z' && v >= 'a' {
+			res = append(res, v+diff)
+		} else {
+			res = append(res, v)
+		}
+	}
+	return string(res)
+}
